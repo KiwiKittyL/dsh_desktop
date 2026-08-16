@@ -1,0 +1,140 @@
+<Application x:Class="DshBar.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+
+        <!-- 主题画刷默认值（深色）；启动时 ShellTheme.ApplyToResources 按实际主题整体覆盖。
+             所有样式一律用 DynamicResource 引用，主题切换即时生效。 -->
+        <SolidColorBrush x:Key="ChromeBgBrush" Color="#FF1B1B1C"/>
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FFCFD3D6"/>
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#FF979DA6"/>
+        <SolidColorBrush x:Key="BtnHoverBrush" Color="#FF2C2C2E"/>
+        <SolidColorBrush x:Key="BtnPressedBrush" Color="#FF353638"/>
+        <SolidColorBrush x:Key="MenuBgBrush" Color="#FF232324"/>
+        <SolidColorBrush x:Key="MenuBorderBrush" Color="#FF353638"/>
+        <SolidColorBrush x:Key="MenuItemHoverBrush" Color="#FF2C2C2E"/>
+        <SolidColorBrush x:Key="MenuDisabledFgBrush" Color="#FF5A5A60"/>
+        <SolidColorBrush x:Key="SeparatorBrush" Color="#FF353638"/>
+        <SolidColorBrush x:Key="ProgressTrackBrush" Color="#FF2C2C2E"/>
+
+        <!-- 现代化深色菜单：圆角、细描边、柔和投影 -->
+        <Style x:Key="ModernContextMenuStyle" TargetType="ContextMenu">
+            <Setter Property="Background" Value="{DynamicResource MenuBgBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource MenuBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="HasDropShadow" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
+                                Padding="5">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="18"
+                                                  ShadowDepth="3"
+                                                  Opacity="0.45"
+                                                  Color="Black"/>
+                            </Border.Effect>
+                            <ItemsPresenter/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 菜单项：圆角高亮、无左侧图标栏；勾选标记置于右侧，禁用置灰 -->
+        <Style x:Key="ModernMenuItemStyle" TargetType="MenuItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="Bd"
+                                Background="Transparent"
+                                CornerRadius="6"
+                                Padding="12,7"
+                                Margin="1,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ContentPresenter Grid.Column="0"
+                                                  ContentSource="Header"
+                                                  VerticalAlignment="Center"/>
+                                <TextBlock x:Name="CheckMark"
+                                           Grid.Column="1"
+                                           Text="✓"
+                                           Foreground="#FF4ADE80"
+                                           FontSize="12"
+                                           Margin="18,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Visibility="Collapsed"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource MenuItemHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{DynamicResource MenuDisabledFgBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 分隔线：细线、内缩 -->
+        <Style x:Key="ModernSeparatorStyle" TargetType="Separator">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Separator">
+                        <Border Height="1"
+                                Background="{DynamicResource SeparatorBrush}"
+                                Margin="10,5"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 标题栏按钮：悬停仅微妙提亮，无系统默认的浅色高亮 -->
+        <Style x:Key="TitleBarButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Margin" Value="2,4"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource BtnHoverBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource BtnPressedBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </Application.Resources>
+</Application>

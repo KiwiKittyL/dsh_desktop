@@ -1,0 +1,25 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# .NET build outputs
+bin/
+obj/
+publish-single/
+_extras/
+
+# Build artifacts
+*.pdb
+*.exe
+*.dll
+*.cache
+
+# NuGet
+*.nupkg
+packages/
+
+# Local user config
+*.local
