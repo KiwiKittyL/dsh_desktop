@@ -52,20 +52,9 @@ public partial class MainWindow : Window
         SetStatus(_status); // 状态点提示语跟随重刷
     }
 
-    #region 气球提示（鲸鱼图标）
+    #region 气球提示（自绘 Toast；legacy BalloonTip 在 Win11 会被静默丢弃）
 
-    private static System.Drawing.Icon? _balloonIcon;
-
-    private static System.Drawing.Icon GetBalloonIcon()
-    {
-        if (_balloonIcon is not null) return _balloonIcon;
-        var stream = Application.GetResourceStream(
-            new Uri("pack://application:,,,/Assets/whale.ico"))!.Stream;
-        return _balloonIcon = new System.Drawing.Icon(stream);
-    }
-
-    private void Balloon(string title, string message) =>
-        TrayIcon.ShowBalloonTip(title, message, GetBalloonIcon(), largeIcon: true);
+    private void Balloon(string title, string message) => Toast.Show(title, message);
 
     #endregion
 
@@ -150,6 +139,40 @@ public partial class MainWindow : Window
         Activate();
         if (!_webReady && _startupCts is null)
             _ = StartAndNavigateAsync();
+    }
+
+    /// <summary>
+    /// 开机自启动的静默预热：不弹窗、不加载 WebView，只在后台探测/启动 dsh web。
+    /// 状态点照常更新；失败时用 Toast 提示（主窗口隐藏也能看到）。
+    /// 之后用户首次唤出窗口时，服务已在跑，直接导航秒开。
+    /// </summary>
+    public async Task WarmUpServiceAsync()
+    {
+        if (_webReady || _startupCts is not null)
+            return;
+
+        _startupCts = new CancellationTokenSource();
+        SetStatus(ServiceStatus.Starting);
+
+        try
+        {
+            await _guardian.EnsureRunningAsync(new Progress<string>(_ => { }), _startupCts.Token);
+            SetStatus(ServiceStatus.Online);
+        }
+        catch (OperationCanceledException)
+        {
+            // 退出时取消，无需提示
+        }
+        catch (Exception ex)
+        {
+            SetStatus(ServiceStatus.Failed);
+            Balloon(ShellLocale.T("balloon.servicefailed"), ex.Message);
+        }
+        finally
+        {
+            _startupCts.Dispose();
+            _startupCts = null;
+        }
     }
 
     /// <summary>探测/启动 dsh web，就绪后让 WebView2 导航过去。</summary>

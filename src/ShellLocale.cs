@@ -38,6 +38,7 @@ public static class ShellLocale
         ["balloon.updatedone.title"] = ("更新完成", "Update Complete"),
         ["balloon.updatedone"]       = ("已更新到 {0} 并重启服务。", "Updated to {0} and restarted the service."),
         ["balloon.autostartfailed"]  = ("开机自启动设置失败", "Failed to Set Auto-Start"),
+        ["balloon.servicefailed"]    = ("dsh 服务启动失败", "Failed to Start dsh Service"),
         ["dialog.newversion"]        = ("发现新版本 {0}（当前 {1}）。\n\n是否现在更新并重启服务？",
                                         "Version {0} is available (current: {1}).\n\nUpdate now and restart the service?"),
     };
