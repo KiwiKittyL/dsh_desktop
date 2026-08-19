@@ -12,6 +12,8 @@
     <ApplicationIcon>Assets\whale.ico</ApplicationIcon>
     <!-- 单文件发布默认启用压缩，避免遗忘导致体积翻倍 -->
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <!-- 原生库（WPF/WebView2）也打进单文件，否则 exe 拷走独跑不起来 -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
