@@ -186,10 +186,12 @@ public partial class MainWindow : Window
 
         try
         {
-            Uri url = await _guardian.EnsureRunningAsync(status, _startupCts.Token);
+            var info = await _guardian.EnsureRunningAsync(status, _startupCts.Token);
             await EnsureWebViewAsync();
-            StatusText.Text = ShellLocale.T("loading.loading", url);
-            WebView.CoreWebView2!.Navigate(url.ToString());
+            // 自己拉起的服务带启动令牌（新版认证墙）；已有服务靠持久化 Cookie
+            var target = info.LaunchUrl ?? info.BaseUrl;
+            StatusText.Text = ShellLocale.T("loading.loading", info.BaseUrl);
+            WebView.CoreWebView2!.Navigate(target.ToString());
         }
         catch (OperationCanceledException)
         {
@@ -221,6 +223,16 @@ public partial class MainWindow : Window
 
         WebView.CoreWebView2!.NavigationCompleted += (_, e) =>
         {
+            // 新版 dsh web 的认证墙：401 说明没有有效 Cookie（服务不是我们拉起的，
+            // 或 Cookie 已过期）。提示用户通过"重启服务"让 DshBar 接管启动以获取令牌。
+            if (e.HttpStatusCode == 401)
+            {
+                _webReady = false;
+                ShowLoading(ShellLocale.T("loading.authrequired"), null);
+                SetStatus(ServiceStatus.Failed);
+                return;
+            }
+
             if (e.IsSuccess)
             {
                 _webReady = true;
@@ -284,10 +296,11 @@ public partial class MainWindow : Window
 
         try
         {
-            Uri url = await _guardian.RestartAsync(status, _startupCts.Token);
+            var info = await _guardian.RestartAsync(status, _startupCts.Token);
             await EnsureWebViewAsync();
-            StatusText.Text = ShellLocale.T("loading.loading", url);
-            WebView.CoreWebView2!.Navigate(url.ToString());
+            var target = info.LaunchUrl ?? info.BaseUrl;
+            StatusText.Text = ShellLocale.T("loading.loading", info.BaseUrl);
+            WebView.CoreWebView2!.Navigate(target.ToString());
         }
         catch (OperationCanceledException)
         {
@@ -351,10 +364,11 @@ public partial class MainWindow : Window
         try
         {
             await _updateChecker.UpdateAsync(status, _startupCts.Token);
-            Uri url = await _guardian.RestartAsync(status, _startupCts.Token);
+            var info = await _guardian.RestartAsync(status, _startupCts.Token);
             await EnsureWebViewAsync();
-            StatusText.Text = ShellLocale.T("loading.loading", url);
-            WebView.CoreWebView2!.Navigate(url.ToString());
+            var target = info.LaunchUrl ?? info.BaseUrl;
+            StatusText.Text = ShellLocale.T("loading.loading", info.BaseUrl);
+            WebView.CoreWebView2!.Navigate(target.ToString());
             Balloon(ShellLocale.T("balloon.updatedone.title"),
                 ShellLocale.T("balloon.updatedone", newVersion));
         }

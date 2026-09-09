@@ -27,6 +27,8 @@ public static class ShellLocale
         ["loading.loading"]          = ("正在加载 {0} …", "Loading {0} …"),
         ["loading.failed"]           = ("启动失败。", "Startup failed."),
         ["loading.pagefailed"]       = ("页面加载失败。", "Failed to load the page."),
+        ["loading.authrequired"]     = ("dsh web 需要认证令牌。请从菜单执行「重启服务」，由 DshBar 拉起服务后会自动携带令牌。",
+                                        "dsh web requires an auth token. Use \"Restart Service\" from the menu — a DshBar-launched service carries the token automatically."),
         ["loading.retry"]            = ("重试", "Retry"),
         ["loading.restarting"]       = ("正在重启 dsh 服务…", "Restarting dsh service…"),
         ["loading.restartfailed"]    = ("重启失败。", "Restart failed."),

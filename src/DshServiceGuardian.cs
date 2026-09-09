@@ -1,6 +1,6 @@
 using System;
 using System.Diagnostics;
-using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -9,10 +9,18 @@ using System.Threading.Tasks;
 
 namespace DshBar;
 
+/// <summary>dsh web 的连接信息：BaseUrl 用于探测，LaunchUrl（带一次性令牌）用于导航。</summary>
+public sealed record DshServiceInfo(Uri BaseUrl, Uri? LaunchUrl);
+
 /// <summary>
 /// dsh web 服务守护：保证 127.0.0.1 上有一个可用的 dsh web 实例。
 /// 已在运行 → 直接返回其 URL；未运行 → 派生 `dsh web` 子进程并轮询到就绪。
 /// 只管理自己拉起的进程；探测到的已有服务永远不被动它。
+///
+/// 新版本 dsh web（≥ 0.1.2-rc.1）有认证墙：首页需要 ?token=（启动令牌），
+/// 换取签名 Cookie 后才能访问。令牌只出现在 dsh web 自己打印的 stdout URL 里，
+/// 因此只有"我们拉起的"服务才能拿到 LaunchUrl；探测到的已有服务没有令牌，
+/// 靠 WebView2 持久化目录里之前换得的 Cookie 通行（密钥持久于 ~/.dsh）。
 /// </summary>
 public sealed class DshServiceGuardian : IDisposable
 {
@@ -25,23 +33,32 @@ public sealed class DshServiceGuardian : IDisposable
     private static readonly Regex UrlPattern =
         new(@"https?://[^\s""'<>]+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(3) };
+    private readonly HttpClient _http;
     private Process? _ownedProcess;
     private readonly StringBuilder _processOutput = new();
+
+    public DshServiceGuardian()
+    {
+        // 探测不跟随重定向：303/401 本身就是"服务活着"的判定依据
+        _http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+        {
+            Timeout = TimeSpan.FromSeconds(3),
+        };
+    }
 
     /// <summary>本进程是否拥有（拉起了）dsh 服务进程。</summary>
     public bool OwnsService => _ownedProcess is not null;
 
     /// <summary>
-    /// 确保服务可用，返回应导航的 URL。
+    /// 确保服务可用，返回探测/导航所需的 URL 信息。
     /// </summary>
-    public async Task<Uri> EnsureRunningAsync(IProgress<string> status, CancellationToken ct)
+    public async Task<DshServiceInfo> EnsureRunningAsync(IProgress<string> status, CancellationToken ct)
     {
         status.Report("正在探测本地 dsh web 服务（127.0.0.1:3080）…");
         if (await ProbeAsync(DefaultUrl, ct))
         {
             status.Report("检测到已在运行的 dsh web，直接连接。");
-            return DefaultUrl;
+            return new DshServiceInfo(DefaultUrl, LaunchUrl: null);
         }
 
         status.Report("未检测到服务，正在启动 dsh web …");
@@ -52,8 +69,9 @@ public sealed class DshServiceGuardian : IDisposable
     /// <summary>
     /// 重启服务：杀掉当前占用 3080 的 dsh 进程（无论是不是我们拉起的），
     /// 再启动一个全新的 dsh web 并等待就绪。调用方负责随后刷新 WebView。
+    /// 重启后服务由我们拉起，LaunchUrl 必带令牌。
     /// </summary>
-    public async Task<Uri> RestartAsync(IProgress<string> status, CancellationToken ct)
+    public async Task<DshServiceInfo> RestartAsync(IProgress<string> status, CancellationToken ct)
     {
         status.Report("正在停止当前 dsh 服务…");
 
@@ -115,11 +133,12 @@ public sealed class DshServiceGuardian : IDisposable
         }
     }
 
-    /// <summary>启动后轮询：解析 stdout 里的实际 URL，探测到首页就绪为止。</summary>
-    private async Task<Uri> WaitUntilReadyAsync(IProgress<string> status, CancellationToken ct)
+    /// <summary>启动后轮询：解析 stdout 里的实际 URL（含令牌），探测到首页就绪为止。</summary>
+    private async Task<DshServiceInfo> WaitUntilReadyAsync(IProgress<string> status, CancellationToken ct)
     {
         var deadline = DateTime.UtcNow + ReadyTimeout;
-        Uri url = DefaultUrl;
+        Uri baseUrl = DefaultUrl;
+        Uri? launchUrl = null;
         var urlLocked = false;
 
         while (DateTime.UtcNow < deadline)
@@ -130,23 +149,24 @@ public sealed class DshServiceGuardian : IDisposable
                 throw new InvalidOperationException(
                     $"dsh web 启动后即退出（退出码 {_ownedProcess.ExitCode}）。\n进程输出：\n{Tail(_processOutput.ToString(), 1200)}");
 
-            // dsh web 的 URL 行由 shell 打印到 stdout；端口被占时可能换成别的端口
+            // dsh web 的 URL 行由 shell 打印到 stdout；带 ?token= 启动令牌（新版），
+            // 端口被占时可能换成别的端口
             if (!urlLocked)
             {
                 var match = UrlPattern.Match(_processOutput.ToString());
                 if (match.Success)
                 {
-                    url = new Uri(match.Value.TrimEnd('.', ')', ']', '/'));
-                    url = new Uri(url.GetLeftPart(UriPartial.Authority) + "/");
+                    launchUrl = new Uri(match.Value.TrimEnd('.', ')', ']'));
+                    baseUrl = new Uri(launchUrl.GetLeftPart(UriPartial.Authority) + "/");
                     urlLocked = true;
-                    status.Report($"服务地址：{url}，等待就绪…");
+                    status.Report($"服务地址：{baseUrl}，等待就绪…");
                 }
             }
 
-            if (await ProbeAsync(url, ct))
+            if (await ProbeAsync(baseUrl, ct))
             {
                 status.Report("dsh web 已就绪。");
-                return url;
+                return new DshServiceInfo(baseUrl, launchUrl);
             }
 
             await Task.Delay(500, ct);
@@ -187,15 +207,32 @@ public sealed class DshServiceGuardian : IDisposable
         _ownedProcess.BeginErrorReadLine();
     }
 
-    /// <summary>GET 首页，200 且 HTML 含 DSH 特征才算“是我们的服务”。</summary>
+    /// <summary>
+    /// GET 首页判定“是我们的服务”：
+    /// 2xx 且含 DSH 特征（旧版无认证）；401 且正文含 dsh（新版认证墙，同样是存活证据）；
+    /// 3xx 重定向（令牌被接受后的 303 等）也算。
+    /// </summary>
     private async Task<bool> ProbeAsync(Uri url, CancellationToken ct)
     {
         try
         {
-            var html = await _http.GetStringAsync(url, ct);
+            using var resp = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+            var code = (int)resp.StatusCode;
+
+            if (code is >= 300 and < 400)
+                return true;
+
+            var body = await resp.Content.ReadAsStringAsync(ct);
+
+            if (resp.StatusCode == HttpStatusCode.Unauthorized)
+                return body.Contains("dsh", StringComparison.OrdinalIgnoreCase);
+
+            if (code is < 200 or >= 300)
+                return false;
+
             foreach (var marker in PageMarkers)
             {
-                if (html.Contains(marker, StringComparison.OrdinalIgnoreCase))
+                if (body.Contains(marker, StringComparison.OrdinalIgnoreCase))
                     return true;
             }
             return false;
